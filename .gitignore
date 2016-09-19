@@ -13,3 +13,9 @@ build
 .gradle
 local.properties
 kobaltBuild
+.kobalt
+
+*~
+.DS_Store
+out
+

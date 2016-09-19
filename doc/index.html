@@ -98,6 +98,33 @@ new JCommander(jct, argv);
 Assert.assertEquals(jct.verbose.intValue(), 2);
 </pre>
 
+An example that mirrors more of what you might see in the "real world" might
+look like this:
+
+<pre class="brush: java">
+class Main {
+    @Parameter(names={"--length", "-l"})
+    int length;
+    @Parameter(names={"--pattern", "-p"})
+    int pattern;
+
+    public static void main(String ... args) {
+        Main main = new Main();
+        new JCommander(main, args);
+        main.run();
+    }
+
+    public void run() {
+        System.out.printf("%d %d", length, pattern);
+    }
+}
+</pre>
+
+If you were to run <code>java Main -l 512 --pattern 2</code>, this would
+output:
+
+<pre>512 2</pre>
+
 <h2><a class="section" name="Types_of_options">Types of options</a></h2>
 
 The fields representing your parameters can be of any type. Basic types (<tt>Integer</tt>, <tt>Boolean</tt/>., etc...) are supported by default and you can write type converters to support any other type (<tt>File</tt>, etc...).
@@ -304,8 +331,27 @@ All you need to do is add the factory to your JCommander object:
 
 Another advantage of using string converter factories is that your factories can come from a dependency injection framework.
 
+
+<h3>By instance factory</h3>
+
+Since version 1.57, instance factories are supported:
+
+<pre class="brush: java">
+public interface IStringConverterInstanceFactory {
+    IStringConverter&lt;?&gt; getConverterInstance(Parameter parameter, Class&lt;?&gt; forType);
+}
+</pre>
+
+This allows to return converters using
+<a href="https://docs.oracle.com/javase/tutorial/java/javaOO/anonymousclasses.html">anonymous classes</a>,
+<a href="https://docs.oracle.com/javase/tutorial/java/javaOO/lambdaexpressions.html">Java 8 lambda expressions</a>,
+among others.
+
 <h2><a class="section" name="Parameter_validation">Parameter validation</a></h2>
 
+Parameter validation can be performed in two different ways: at the individual parameter level or globally.
+
+<h3><a class="section" indent=".." id="individual_validation">Individual parameter validation</a></h3>
 You can ask JCommander to perform early validation on your parameters by providing a class that implements the following interface:
 
 <pre class="brush:java">
@@ -345,6 +391,17 @@ private Integer age;
 </pre>
 
 Attempting to pass a negative integer to this option will cause a <tt>ParameterException</tt> to be thrown.
+
+
+<h3><a class="section" indent=".." id="global_validation">Global parameter validation</a></h3>
+
+After parsing your parameters with JCommander, you might want to perform additional validation
+across these parameters, such as making sure that two mutually exclusive parameters are not
+both specified. Because of all the potential combinations involved in such validation,
+JCommander does not provide any annotation-based solution to perform this validation because such
+an approach would necessarily be very limited by the very nature of Java annotations. Instead,
+you should simple perform this validation in Java on all the arguments that JCommander
+just parsed.
 
 
 <h2><a class="section" name="Main_parameter">Main parameter</a></h2>
@@ -467,6 +524,10 @@ file3
 <pre class="brush: plain">
 java Main @/tmp/parameters
 </pre>
+
+<p>The file is read using the default charset unless <code>JCommander#setAtFileCharset</code> had been called.</p>
+
+<p>Ths feature can be disabled by calling <code>JCommander#setExpandAtSign</code>.</p>
 
 <h2><a class="section" name="Arities">Arities (multiple values for parameters)</a></h2>
 

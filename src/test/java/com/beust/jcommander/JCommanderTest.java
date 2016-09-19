@@ -20,10 +20,13 @@ package com.beust.jcommander;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStreamWriter;
 import java.math.BigDecimal;
+import java.nio.charset.Charset;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -40,6 +43,8 @@ import org.testng.Assert;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
 
+import com.beust.jcommander.args.ArgsLongCommandDescription;
+import com.beust.jcommander.args.ArgsLongMainParameterDescription;
 import com.beust.jcommander.args.AlternateNamesForListArgs;
 import com.beust.jcommander.args.Args1;
 import com.beust.jcommander.args.Args1Setter;
@@ -83,6 +88,37 @@ import com.beust.jcommander.internal.Maps;
 
 @Test
 public class JCommanderTest {
+
+  @Test
+  public void testLongMainParameterDescription() {
+    //setup
+    JCommander jc = new JCommander(new ArgsLongMainParameterDescription());
+    StringBuilder sb = new StringBuilder();
+
+    //action
+    jc.usage(sb);
+
+    //verify
+    for (String line: sb.toString().split("\n")) {
+      Assert.assertTrue(line.length() <=  jc.getColumnSize(), "line length < column size");
+    }
+  }
+
+  @Test
+  public void testLongCommandDescription() throws Exception {
+    //setup
+    JCommander jc = new JCommander();
+    jc.addCommand(new ArgsLongCommandDescription());
+    StringBuilder sb = new StringBuilder();
+
+    //action
+    jc.usage(sb);
+
+    //verify
+    for (String line: sb.toString().split("\n")) {
+      Assert.assertTrue(line.length() <=  jc.getColumnSize(), "line length < column size");
+    }
+  }
 
   @Test
   public void testDescriptionWrappingLongWord() {
@@ -319,7 +355,7 @@ public class JCommanderTest {
     Object args = new Object() {
       @Parameter(names = "-foo") final int _foo = 0;
     };
-    new JCommander(args);
+    new JCommander(args).usage();
   }
 
   public void converterArgs() {
@@ -590,7 +626,7 @@ public class JCommanderTest {
   @Test(expectedExceptions = ParameterException.class)
   public void validationShouldWorkWithDefaultValues() {
     ArgsValidate2 a = new ArgsValidate2();
-    new JCommander(a);
+    new JCommander(a).usage();
   }
 
   @Test(expectedExceptions = ParameterException.class)
@@ -609,6 +645,29 @@ public class JCommanderTest {
     fw.write("2\n");
     fw.close();
     new JCommander(new Args1(), "@" + f.getAbsolutePath());
+  }
+
+  public void atFileWithInNonDefaultCharset() throws IOException {
+    final Charset utf32 = Charset.forName("UTF-32");
+    final File f = File.createTempFile("JCommander", null);
+    f.deleteOnExit();
+    try (OutputStreamWriter fw = new OutputStreamWriter(new FileOutputStream(f), utf32)) {
+      fw.write("-log\n");
+      fw.write("2\n");
+      fw.write("-groups\n");
+      fw.write("\u9731\n");
+    }
+    final Args1 args1 = new Args1();
+    final JCommander jc = new JCommander(args1);
+    try {
+      jc.parse("@" + f.getAbsolutePath());
+      throw new IllegalStateException("Expected exception to be thrown");
+    } catch (ParameterException expected) {
+      Assert.assertTrue(expected.getMessage().startsWith("Could not read file"));
+    }
+    jc.setAtFileCharset(utf32);
+    jc.parse("@" + f.getAbsolutePath());
+    Assert.assertEquals("\u9731", args1.groups);
   }
 
   public void handleEqualSigns() {
@@ -938,6 +997,36 @@ public class JCommanderTest {
     jc.parse(new String[] { "-host", "foo" });
     Assert.assertEquals(arg1.host, "foo");
     Assert.assertEquals(arg2.host, "foo");
+  }
+
+  @Test(enabled = true, description = "Disable top-level @/ampersand file expansion")
+  public void disabledAtSignExpansionTest() {
+    class Params {
+      @Parameter(names = { "-username" })
+      protected String username;
+    }
+
+    Params params = new Params();
+
+    JCommander jc = new JCommander(params);
+    jc.setExpandAtSign(false);
+    jc.parse(new String[] { "-username", "@tzellman" });
+    Assert.assertEquals(params.username, "@tzellman");
+  }
+
+  @Test(enabled = true, description = "Enable top-level @/ampersand file expansion, which should throw in this case",
+          expectedExceptions = ParameterException.class)
+  public void enabledAtSignExpansionTest() {
+    class Params {
+      @Parameter(names = { "-username" })
+      protected String username;
+    }
+
+    Params params = new Params();
+
+    JCommander jc = new JCommander(params);
+    jc.parse(new String[] { "-username", "@tzellman" });
+    Assert.assertEquals(params.username, "@tzellman");
   }
 
   public void parameterWithOneDoubleQuote() {
